@@ -1,33 +1,28 @@
-mongodb-data
-============
-Config files and data folders for mongodb-10gen cluster and simple cluster setup deployment scripts.
+# mongodb-cluster-install
+Script for nice and simple installation of mongodb-10gen sharded cluster.
 
-Run all scripts as root.
-* `deploy-master-full.sh`   install and run simple mongodb cluster: one router, 3 config servers and one shard (all one the same machine).
-* `deploy-master-test.sh`   install and run test mongodb cluster: one router, 1 config server and one shard (all one the same machine).
-* `deploy-shard.sh`    install and run mongodb cluster shard (run one separate machine).
-* `run-master-full.sh` run full cluster setup (with 3 config servers).
-* `run-master-test.sh` run test cluster setup (with 1 config server).
-* `run-shard.sh`       run single shard.
+## Install
+There are two prerequisites:
+* you must have an empty data folder owned by the same user that will run the cluster
+* you must run the script from this user
 
-Installation & deployment
--------------------------
-To deploy mongodb-10gen test cluster on a single machine with a single shard, run as superuser:
+In the example below we use the folder we clone the installation script into `/data` folder. Because we do it as a superuser (`sudo` before the command), the folder is owned by `root` user. After cloning the repo we have to set folder owner to the user that will run the cluster (`mongodb` in the example). Then we run the installation script and run the minimal cluster setup as `mongodb` user.
+
 ```sh
-git clone https://github.com/roveo/mongodb-data.git /data
-sh /data/deploy-master-test.sh
+# clone installation script into /data folder
+sudo git clone https://github.com/roveo/mongodb-cluster-install.git /data
+sudo chown mongodb /data # set owner to mongodb
+sudo -u mongodb /data/install
+sudo -u mongodb /data/run-min
 ```
-Enter username which mongodb cluster will run under when prompted.
 
-_No security or sharding is enabled by default._
-
-Additional shards
+## Additional shards
 -----------------
-To deploy a single shard on another machine, run:
+To run a single shard on another machine, run:
 ```sh
-git clone https://github.com/roveo/mongodb-data.git /data
-sh /data/deploy-shard.sh
+sudo -u mongodb /data/run-shard
 ```
+instead of the last line.
 
 After that run on master:
 ```sh
@@ -41,3 +36,5 @@ Info
 Three config servers are running on ports 27027-27029.
 
 Shards are running on port 27037, one shard per computer (including master) is presumed.
+
+For more information on mongodb sharded clusters, see the docs: http://docs.mongodb.org/manual/sharding/
