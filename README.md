@@ -17,7 +17,6 @@ sudo -u mongodb /data/run-min
 ```
 
 ## Additional shards
------------------
 To run a single shard on another machine, run:
 ```sh
 sudo -u mongodb /data/run-shard
