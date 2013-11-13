@@ -1,0 +1,205 @@
+#! /bin/bash
+# 
+# Script installs mongodb-10gen cluster and makes basic folder structure.
+
+read -p "Mongodb data folder (please enter ABSOLUTE PATH): " datafolder
+
+if ! [ -d "$datafolder" ]; then
+    echo "Given mongodb data folder not found!"
+    exit
+fi
+
+ip=$(hostname -I)
+echo "Your IP-adress seems to be $ip"
+
+echo "Making folders..."
+mkdir "$datafolder/config"
+echo "$datafolder/config"
+mkdir "$datafolder/shard"
+echo "$datafolder/shard"
+mkdir "$datafolder/cfg0"
+echo "$datafolder/cfg0"
+mkdir "$datafolder/cfg1"
+echo "$datafolder/cfg1"
+mkdir "$datafolder/cfg2"
+echo "$datafolder/cfg2"
+mkdir "$datafolder/log"
+echo "$datafolder/log"
+
+# CONFIG SERVER 0
+echo "Creating config files..."
+cat <<EOF > "$datafolder/config/cfg0.conf"
+# Config file for mongodb-10gen cluster, configdb0
+
+configsvr=true
+dbpath=$datafolder/cfg0
+
+bind_ip=$ip
+port=27027
+
+logpath=$datafolder/log/cfg0.log
+logappend=true
+
+fork=true
+journal=true
+EOF
+echo "$datafolder/config/cfg0.conf"
+
+# CONFIG SERVER 1
+cat <<EOF > "$datafolder/config/cfg1.conf"
+# Config file for mongodb-10gen cluster, configdb1
+
+configsvr=true
+dbpath=$datafolder/cfg1
+
+bind_ip=$ip
+port=27028
+
+logpath=$datafolder/log/cfg1.log
+logappend=true
+
+fork=true
+journal=true
+EOF
+echo "$datafolder/config/cfg1.conf"
+
+# CONFIG SERVER 2
+cat <<EOF > "$datafolder/config/cfg2.conf"
+# Config file for mongodb-10gen cluster, configdb2
+
+configsvr=true
+dbpath=$datafolder/cfg2
+
+bind_ip=$ip
+port=27029
+
+logpath=$datafolder/log/cfg2.log
+logappend=true
+
+fork=true
+journal=true
+EOF
+echo "$datafolder/config/cfg2.conf"
+
+# ROUTER
+cat <<EOF > "$datafolder/config/mongos.conf"
+# Config file for mongodb-10gen cluster, cluster router
+
+configdb=$ip:27027,$ip:27028,$ip:27029
+
+bind_ip=$ip,127.0.0.1
+port=27017
+
+logpath=$datafolder/log/mongos.log
+logappend=true
+
+fork=true
+EOF
+echo "$datafolder/config/mongos.conf"
+
+# ROUTER SETUP FOR MINIMAL CLUSTER (ONE CONFIG SERVER)
+cat <<EOF > "$datafolder/config/mongos-min.conf"
+# Config file for mongodb-10gen cluster, cluster router
+
+configdb=$ip:27027
+
+bind_ip=$ip,127.0.0.1
+port=27017
+
+logpath=$datafolder/log/mongos-min.log
+logappend=true
+
+fork=true
+EOF
+echo "$datafolder/config/mongos-min.conf"
+
+# SHARD
+cat <<EOF > "$datafolder/config/shard.conf"
+# Config file for mongodb-10gen cluster, cluster shard
+
+shardsvr=true
+dbpath=$datafolder/shard
+
+bind_ip=$ip
+port=27037
+
+logpath=$datafolder/log/shard.log
+logappend=true
+
+fork=true
+journal=true
+EOF
+echo "$datafolder/config/shard.conf"
+
+# SHELL SCRIPT FOR RUNNING FULL SETUP
+cat <<EOF > "$datafolder/run"
+#! /bin/sh
+echo "Running config databases..."
+mongod -f $datafolder/config/cfg0.conf
+echo "configdb0 OK"
+mongod -f $datafolder/config/cfg1.conf
+echo "configdb1 OK"
+mongod -f $datafolder/config/cfg2.conf
+echo "configdb2 OK"
+
+echo "Running mongos instance..."
+mongos -f $datafolder/config/mongos.conf
+echo "mongos0 OK"
+
+echo "Running shard..."
+mongod -f $datafolder/config/shard.conf
+mongo --eval "sh.addShard('$ip:27037')"
+echo "shard OK"
+EOF
+echo "$datafolder/run"
+
+# SHELL SCRIPT FOR RUNNING MINIMAL SETUP
+cat <<EOF > "$datafolder/run-min"
+#! /bin/sh
+echo "Running config database..."
+mongod -f $datafolder/config/cfg0.conf
+echo "configdb0 OK"
+
+echo "Running mongos instance..."
+mongos -f $datafolder/config/mongos-min.conf
+echo "mongos0 OK"
+
+echo "Running shard..."
+mongod -f $datafolder/config/shard.conf
+mongo --eval "sh.addShard('$ip:27037')"
+echo "shard OK"
+EOF
+echo "$datafolder/run-min"
+
+# SHELL SCRIPT FOR RUNNING A SINGLE SHARD
+cat <<EOF > "$datafolder/run-shard"
+#! /bin/sh
+echo "Running shard..."
+mongod -f $datafolder/config/shard.conf
+mongo --quiet --eval "sh.addShard('$ip:27037')"
+echo "shard OK"
+EOF
+echo "$datafolder/run-shard" 
+
+# SETTING PERMISSIONS
+chmod u+=rwx,go+=r "$datafolder/run"
+chmod u+=rwx,go+=r "$datafolder/run-min"
+chmod u+=rwx,go+=r "$datafolder/run-shard"
+
+# INSTALLING mongodb-10gen
+echo "Installing mongodb-10gen."
+sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 7F0CEB10
+echo 'deb http://downloads-distro.mongodb.org/repo/ubuntu-upstart dist 10gen' | sudo tee /etc/apt/sources.list.d/mongodb.list > /dev/null
+sudo apt-get update > /dev/null
+sudo apt-get install mongodb-10gen
+
+# prevent mongodb from starting automatically
+echo "Overriding mongodb-10gen init script."
+sudo service mongodb stop
+echo "manual" | sudo tee /etc/init/mongodb.override > /dev/null
+
+cat <<EOF
+
+Installation complete!
+Run $datafolder/run-min for simple test setup.
+EOF
